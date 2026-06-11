@@ -55,6 +55,9 @@ db.exec(`
     apikey_enc TEXT NOT NULL,
     sharecode_enc TEXT NOT NULL,
     iv TEXT NOT NULL,
+    pishock_user_id TEXT,
+    shocker_id TEXT,
+    client_id TEXT,
     created_at INTEGER DEFAULT (unixepoch())
   );
 
@@ -132,17 +135,25 @@ function setUserShockDefaults(userId, { op, intensity, duration, maxSnoozes, int
 }
 
 // ── PiShock credentials ───────────────────────────────────────────────────────
-function savePishockCredentials(userId, username, apikey, sharecode) {
+
+
+function savePishockCredentials(userId, username, apikey, sharecode, resolved = {}) {
   const iv = crypto.randomBytes(16).toString('hex');
   const uEnc = encryptWithIv(username, iv);
   const aEnc = encryptWithIv(apikey, iv);
   const sEnc = encryptWithIv(sharecode, iv);
-  db.prepare(`INSERT INTO pishock_credentials (user_id, username_enc, apikey_enc, sharecode_enc, iv)
-    VALUES (?, ?, ?, ?, ?)
+  db.prepare(`INSERT INTO pishock_credentials (user_id, username_enc, apikey_enc, sharecode_enc, iv, pishock_user_id, shocker_id, client_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET username_enc=excluded.username_enc,
-    apikey_enc=excluded.apikey_enc, sharecode_enc=excluded.sharecode_enc, iv=excluded.iv`)
-    .run(userId, uEnc, aEnc, sEnc, iv);
+    apikey_enc=excluded.apikey_enc, sharecode_enc=excluded.sharecode_enc, iv=excluded.iv,
+    pishock_user_id=excluded.pishock_user_id, shocker_id=excluded.shocker_id, client_id=excluded.client_id`)
+    .run(userId, uEnc, aEnc, sEnc, iv,
+      resolved.userId ? String(resolved.userId) : null,
+      resolved.shockerId ? String(resolved.shockerId) : null,
+      resolved.clientId ? String(resolved.clientId) : null,
+    );
 }
+
 function encryptWithIv(text, ivHex) {
   const iv = Buffer.from(ivHex, 'hex');
   const cipher = crypto.createCipheriv('aes-256-gcm', ENC_KEY, iv);
@@ -150,6 +161,8 @@ function encryptWithIv(text, ivHex) {
   const tag = cipher.getAuthTag();
   return Buffer.concat([encrypted, tag]).toString('hex');
 }
+
+
 function getPishockCredentials(userId) {
   const row = db.prepare('SELECT * FROM pishock_credentials WHERE user_id = ?').get(userId);
   if (!row) return null;
@@ -157,8 +170,12 @@ function getPishockCredentials(userId) {
     username: decrypt(row.username_enc, row.iv),
     apikey: decrypt(row.apikey_enc, row.iv),
     sharecode: decrypt(row.sharecode_enc, row.iv),
+    userId: row.pishock_user_id,
+    shockerId: row.shocker_id,
+    clientId: row.client_id,
   };
 }
+
 
 // ── Alarms ────────────────────────────────────────────────────────────────────
 

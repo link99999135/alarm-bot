@@ -1,29 +1,41 @@
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
-const PISHOCK_URL = 'https://do.pishock.com/api/apioperate';
-
 const OP = { SHOCK: 0, VIBRATE: 1, BEEP: 2 };
 const OP_NAMES = { 0: 'shock', 1: 'vibrate', 2: 'beep' };
 
-async function operate(credentials, { op, intensity, duration, name = 'AlarmBot' }) {
+async function resolveCredentials(username, apikey, sharecode) {
+  const authRes = await fetch(
+    `https://auth.pishock.com/Auth/GetUserIfAPIKeyValid?apikey=${encodeURIComponent(apikey)}&username=${encodeURIComponent(username)}`
+  );
+  if (!authRes.ok) throw new Error(`Auth request failed: ${authRes.status}`);
+  const authData = await authRes.json();
+  const userId = authData.UserId;
+  if (!userId) throw new Error('Could not find UserId in auth response');
+
+  return { userId, username, apikey, sharecode };
+}
+
+async function operate(credentials, { op, intensity, duration }) {
   const body = {
     Username: credentials.username,
     Apikey: credentials.apikey,
     Code: credentials.sharecode,
-    Name: name,
+    Name: 'AlarmBot',
     Op: op,
     Duration: Math.min(Math.max(1, duration), 15),
     Intensity: Math.min(Math.max(0, intensity), 100),
   };
+
   console.log('[PiShock] Sending:', JSON.stringify(body));
+
   try {
-    const res = await fetch(PISHOCK_URL, {
+    const res = await fetch('https://do.pishock.com/api/apioperate/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const text = await res.text();
-    console.log('[PiShock debug]', res.status, text);
+    console.log('[PiShock] Response:', res.status, text);
     return { ok: res.ok, status: res.status, body: text };
   } catch (err) {
     console.error('[PiShock] Request failed:', err.message);
@@ -44,8 +56,7 @@ async function beep(credentials, duration) {
 }
 
 async function test(credentials) {
-  // Always vibrate for test — never shock
   return vibrate(credentials, 20, 1);
 }
 
-module.exports = { OP, OP_NAMES, operate, shock, vibrate, beep, test };
+module.exports = { OP, OP_NAMES, operate, shock, vibrate, beep, test, resolveCredentials };

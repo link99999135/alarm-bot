@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const {
   savePishockCredentials, getPishockCredentials, setUserShockDefaults, getUser,
 } = require('../db');
@@ -13,7 +13,7 @@ module.exports = {
       .setDescription('Link your PiShock credentials')
       .addStringOption(o => o.setName('username').setDescription('Your PiShock username').setRequired(true))
       .addStringOption(o => o.setName('apikey').setDescription('Your PiShock API key').setRequired(true))
-      .addStringOption(o => o.setName('sharecode').setDescription('Your shocker share code').setRequired(true)))
+      .addStringOption(o => o.setName('sharecode').setDescription('Share code from pishock.com').setRequired(true)))
     .addSubcommand(sub => sub
       .setName('test')
       .setDescription('Send a test vibration to confirm your device is connected'))
@@ -26,8 +26,8 @@ module.exports = {
           { name: 'Vibrate', value: '1' },
           { name: 'Beep', value: '2' },
         ))
-      .addIntegerOption(o => o.setName('intensity').setDescription('Default intensity 1–100').setMinValue(1).setMaxValue(100).setRequired(false))
-      .addIntegerOption(o => o.setName('duration').setDescription('Default duration in seconds 1–3').setMinValue(1).setMaxValue(3).setRequired(false))
+      .addIntegerOption(o => o.setName('intensity').setDescription('Default intensity 1-100').setMinValue(1).setMaxValue(100).setRequired(false))
+      .addIntegerOption(o => o.setName('duration').setDescription('Default duration in seconds 1-3').setMinValue(1).setMaxValue(3).setRequired(false))
       .addIntegerOption(o => o.setName('intensity_cap').setDescription('Hard cap on max intensity (default 50)').setMinValue(1).setMaxValue(100).setRequired(false))
       .addIntegerOption(o => o.setName('max_snoozes').setDescription('Default max snoozes per alarm').setMinValue(0).setMaxValue(10).setRequired(false))),
 
@@ -40,17 +40,22 @@ module.exports = {
 };
 
 async function handleSetup(interaction) {
-  // Ephemeral — credentials never shown in channel
   await interaction.deferReply({ ephemeral: true });
   const username = interaction.options.getString('username');
   const apikey = interaction.options.getString('apikey');
   const sharecode = interaction.options.getString('sharecode');
 
-  savePishockCredentials(interaction.user.id, username, apikey, sharecode);
+  await interaction.editReply('Validating credentials with PiShock...');
 
-  await interaction.editReply(
-    'PiShock credentials saved and encrypted. Run `/pishock test` to verify your device is responding.'
-  );
+  let resolved;
+  try {
+    resolved = await pishock.resolveCredentials(username, apikey, sharecode);
+  } catch (err) {
+    return interaction.editReply(`Failed to validate credentials: ${err.message}`);
+  }
+
+  savePishockCredentials(interaction.user.id, username, apikey, sharecode, resolved);
+  await interaction.editReply(`PiShock credentials saved! Run \`/pishock test\` to verify your device is responding.`);
 }
 
 async function handleTest(interaction) {
