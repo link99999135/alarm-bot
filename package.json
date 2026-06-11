@@ -1,0 +1,19 @@
+{
+  "name": "alarm-bot",
+  "version": "1.0.0",
+  "description": "Discord alarm bot with PiShock and lockbox support",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.1",
+    "luxon": "^3.4.4",
+    "node-cron": "^3.0.3",
+    "node-fetch": "^3.3.2",
+    "ws": "^8.21.0"
+  }
+}
